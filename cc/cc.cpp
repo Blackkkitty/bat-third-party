@@ -1,3 +1,19 @@
+/*
+    cc
+    Version     : 2.0
+    Auther      : Blackkitty
+    Date        : 2017-3-1
+    Description : batch developing helper
+
+    batch usage:
+        cc              hide cursor
+        cc k            get key
+        cc K list       get key combine
+        cc n            sleep(n)
+        cc c n          set cursorSize=n
+        cc x y          move cursor to (x,y)
+*/
+
 #include<windows.h>
 #include<conio.h>
 #include<vector>

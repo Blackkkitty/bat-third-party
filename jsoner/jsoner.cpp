@@ -1,15 +1,16 @@
 /*
-    jsoner.cpp By blackkitty
+    jsoner
+    Version     : 0.1 beta
+    Auther      : Blackkitty
+    Date        : 2017-3-7
+    Description : JSON parsing for batch
 
-    Useage:
-        Convert JSON to bat commands.
-
-    Example：
+    batch usage:
         jsoner [-f JSONFile]|[-s JSONString] SaveFile
         set NumberOfArguments=%errorlevel%
         call SaveFile [Arguments]
-
 */
+
 #include <stdio.h>
 #include <stdlib.h>
 
