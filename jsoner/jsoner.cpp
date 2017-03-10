@@ -33,6 +33,18 @@ inline bool IS_WHITESPACE(char c){
 inline bool IS_KEYCHAR(char c){
     return MATCHED(c,"{}[],:\0");
 }
+int itoa(int x, char * buffer){
+    if(x == 0){
+        *buffer = '0';
+        return 1;
+    }
+    int len = 0;
+    for(int z=x;z;z/=10) len++;
+    for(int i=len;x;x/=10){
+        buffer[--i] = '0' + x%10;
+    }
+    return len;
+}
 
 inline char TYPE_CHECK(const char * str){
     if(*str == C_STRING_TYPE) 
@@ -53,28 +65,8 @@ inline char TYPE_CHECK(const char * str){
 
 int main(int argc, char *argv[]) {
     /************test**************/
-    char s[] = "{\n\
-    \"id\":10086,\n\
-    \"name\":\"fuck\",\n\
-    \"children\":[\n\
-        {\n\
-            \"id\":12,\n\
-            \"name\":\"aaa\",\n\
-            \"friends\":[\n\
-                \"tom\",\"jerry\",\"jack\"\n\
-            ]\n\
-        },\n\
-        {\n\
-            \"id\":2,\n\
-            \"name\":\"bbb\",\n\
-            \"goodman\":true\n\
-        }\n\
-    ],\n\
-    \"good man\":false,\n\
-    \"next\":null\n\
-}";
-    puts(s);
-    whitespaceCLR(s);
+    char s[100] = "-------------";  
+    s[itoa(1234,s)] = '\0';
     puts(s);
     return 0;
     /******************************/
@@ -149,20 +141,25 @@ char * getContent(const char * str, int & ctSize){
     summary:
         jsont to cmd main loop
 */
-int json2cmd(char * jsonStr, FILE * hSaveFile) {
+int json2cmd(char * jsonStr, FILE * hSaveFile, char * eName) {
 
     const char * p;
     
-    char _stk[4096];
+    char _stk[4096];            /* record "" {} [] : */
     char *stk = _stk;
 
-    char _name[4096];
-    char *name = _name;
-    char *lastname = _name;
+    char name[4096];           /* record element name */
+    strcpy(_name, eName);
+    char *nametail = _name + strlen(_name);
+    char *lasttail = _name;
 
-    char elementName[256];
+    int _inx[4096] = {0};       /* record list index */
+    int *inx = _inx;
+
+
     whitespaceCLR(jsonStr);
     p = jsonStr;
+
     for (; *p;) { 
         switch(*p){
             case '"':
@@ -170,7 +167,10 @@ int json2cmd(char * jsonStr, FILE * hSaveFile) {
                 else *stk-- = *p;
 
                 break;
-            case '{':case '[':
+            case '{':
+                *stk++ = *p;
+                break;
+            case '[':
                 *stk++ = *p;
                 break;
             case '}':
@@ -181,12 +181,16 @@ int json2cmd(char * jsonStr, FILE * hSaveFile) {
                 if(*stk == '[') stk--;
                 else return 1;
                 break;
+            case ':':
+                *stk++ = *p;
+                break;
+            case ',':
+                if(*stk == '[') ++*inx;
+                
 
+                break;
             default:;
         }
-            _json2cmd(p, hSaveFile, elementName);
-
-
     }
 }
 

@@ -52,3 +52,24 @@
     "good man":false,
     "next":null
 }
+
+char json[] = "{\n\
+    \"id\":10086,\n\
+    \"name\":\"fuck\",\n\
+    \"children\":[\n\
+        {\n\
+            \"id\":12,\n\
+            \"name\":\"aaa\",\n\
+            \"friends\":[\n\
+                \"tom\",\"jerry\",\"jack\"\n\
+            ]\n\
+        },\n\
+        {\n\
+            \"id\":2,\n\
+            \"name\":\"bbb\",\n\
+            \"goodman\":true\n\
+        }\n\
+    ],\n\
+    \"good man\":false,\n\
+    \"next\":null\n\
+}";
