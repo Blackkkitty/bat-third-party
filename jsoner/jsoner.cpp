@@ -6,7 +6,7 @@
     Description : JSON parsing for batch
 
     batch usage:
-        jsoner [-f JSONFile]|[-s JSONString] SaveFile
+        jsoner [-f JSONFile]|[-s JSONString] SaveFile elementName
         set NumberOfArguments=%errorlevel%
         call SaveFile [Arguments]
 */
@@ -20,10 +20,10 @@
 #define C_BOOL_TYPE '@'
 #define C_NULL_TYPE '$'
 
-int json2cmd(const char * jsonStrPtr, FILE * hSaveFile);
-bool _json2cmd(const char *&jsonStrPtr, FILE * hSaveFile, char * name);
-char * getContent(const char * strPtr);
-void ignoreBlank(char *& strPtr);
+int json2cmd(const char * jsonStr, FILE * hSaveFile);
+bool _json2cmd(const char *&jsonStr, FILE * hSaveFile, char * name);
+char * getContent(const char * str, int & ctSize);
+void whitespaceCLR(char *str);
 
 #define MATCHED(c,s) (strchr(s,c)!=NULL)
 
@@ -53,10 +53,29 @@ inline char TYPE_CHECK(const char * str){
 
 int main(int argc, char *argv[]) {
     /************test**************/
-    char *sl[] = {"123,","true,","null]","\"asdf sa\"","false "};
-    for(int i=0;i<sizeof(sl)/sizeof(char*);i++){
-        puts(getContent(sl[i]));
-    }
+    char s[] = "{\n\
+    \"id\":10086,\n\
+    \"name\":\"fuck\",\n\
+    \"children\":[\n\
+        {\n\
+            \"id\":12,\n\
+            \"name\":\"aaa\",\n\
+            \"friends\":[\n\
+                \"tom\",\"jerry\",\"jack\"\n\
+            ]\n\
+        },\n\
+        {\n\
+            \"id\":2,\n\
+            \"name\":\"bbb\",\n\
+            \"goodman\":true\n\
+        }\n\
+    ],\n\
+    \"good man\":false,\n\
+    \"next\":null\n\
+}";
+    puts(s);
+    whitespaceCLR(s);
+    puts(s);
     return 0;
     /******************************/
 
@@ -72,20 +91,29 @@ int main(int argc, char *argv[]) {
 }
 
 /*
-    ignoreBlank
+    whitespaceCLR
     summary:
-        jump to next charactor and ignore the blank charactor.
+        delete all the whitespace who doesn't effect the value.
 */
-inline void ignoreBlank(const char *& strPtr) {
-    for (;*strPtr!='\0' && IS_WHITESPACE(*strPtr); strPtr++);
+void whitespaceCLR(char * str){
+    bool flag = false;
+    char *p = str;
+    for (; *str != '\0';str++){
+        if(*str == '"')
+            flag = !flag;
+        if(flag || (*str!=' ' && *str!='\t' && *str!='\n'))
+            *p++ = *str;
+    }
+    *p = '\0';
 }
+
 
 /*
     getContent
     summary:
-        get the content of key or value.
+        return the content of key or value.
 */
-char * getContent(const char * strPtr){
+char * getContent(const char * str, int & ctSize){
     /*
         start   end         ignoreBlank
         "       "           0
@@ -94,41 +122,74 @@ char * getContent(const char * strPtr){
         ,       ,]          1
         number  whitespace  0
     */
-    int ctSize;
-    char * buffer;
-    char ctType;
+    char * buffer;      /*constent buffer*/
+    char ctType;        /*content type*/
     char * endFlag;
 
-    switch(ctType = TYPE_CHECK(strPtr)){
-        case C_STRING_TYPE:     endFlag = "\""; strPtr++;break;
+    switch(ctType = TYPE_CHECK(str)){
+        case C_STRING_TYPE:     endFlag = "\""; str++; break;
         case C_BOOL_TYPE:       /* fallthrough... */
         case C_NULL_TYPE:       /* fallthrough... */
         case C_NUMBER_TYPE:     endFlag = " \t\n{}[],:\0";break;
         default: return NULL;
     }
-    printf("type: %c  ",ctType);
-    for(ctSize=0;!MATCHED(strPtr[ctSize], endFlag);ctSize++);
+
+    /* copy content to buffer */
+    for(ctSize=0;!MATCHED(str[ctSize], endFlag);ctSize++);
     buffer = (char *)malloc(sizeof(char)*(ctSize+1));
-    memcpy(buffer, strPtr, sizeof(char)*ctSize);
-    buffer[ctSize] == '\0';
+    memcpy(buffer, str, sizeof(char)*ctSize);
+    buffer[ctSize] = '\0';
 
     return buffer;
 }
 
-int json2cmd(const char * jsonStrPtr, FILE * hSaveFile) {
+
+/*
+    json2cmd
+    summary:
+        jsont to cmd main loop
+*/
+int json2cmd(char * jsonStr, FILE * hSaveFile) {
 
     const char * p;
+    
+    char _stk[4096];
+    char *stk = _stk;
+
+    char _name[4096];
+    char *name = _name;
+    char *lastname = _name;
+
     char elementName[256];
-    p = jsonStrPtr;
-    ignoreBlank(p);
+    whitespaceCLR(jsonStr);
+    p = jsonStr;
     for (; *p;) { 
-        if (*p == '"')
+        switch(*p){
+            case '"':
+                if(*stk == '"') stk--;
+                else *stk-- = *p;
+
+                break;
+            case '{':case '[':
+                *stk++ = *p;
+                break;
+            case '}':
+                if(*stk == '{') stk--;
+                else return 1;
+                break;
+            case ']':
+                if(*stk == '[') stk--;
+                else return 1;
+                break;
+
+            default:;
+        }
             _json2cmd(p, hSaveFile, elementName);
 
 
     }
 }
 
-bool _json2cmd(const char *&jsonStrPtr, FILE * hSaveFile, char * name){
+bool _json2cmd(const char *&jsonStr, FILE * hSaveFile, char * name){
     return false;
 }
