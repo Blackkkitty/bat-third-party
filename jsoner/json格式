@@ -40,7 +40,8 @@
             "id":12,
             "name":"aaa",
             "friends":[
-                "tom","jerry","jack"
+                "tom","jerry","jack",
+                ["aa",123,true,[false]]
             ]
         },
         {
@@ -62,6 +63,7 @@ char json[] = "{\n\
             \"name\":\"aaa\",\n\
             \"friends\":[\n\
                 \"tom\",\"jerry\",\"jack\"\n\
+                [\"aa\",123,true,[false]]\n\
             ]\n\
         },\n\
         {\n\
