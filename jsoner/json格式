@@ -62,7 +62,7 @@ char json[] = "{\n\
             \"id\":12,\n\
             \"name\":\"aaa\",\n\
             \"friends\":[\n\
-                \"tom\",\"jerry\",\"jack\"\n\
+                \"tom\",\"jerry\",\"jack\",\n\
                 [\"aa\",123,true,[false]]\n\
             ]\n\
         },\n\

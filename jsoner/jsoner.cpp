@@ -1,13 +1,12 @@
 /*
     jsoner
-    Version     : 0.1 beta
+    Version     : 0.9 beta
     Auther      : blackkitty
     Date        : 2017-3-7
     Description : JSON parsing for batch
 
     batch usage:
         jsoner [-f JSONFile]|[-s JSONString] SaveFile elementName
-        set NumberOfArguments=%errorlevel%
         call SaveFile [Arguments]
 */
 
@@ -25,6 +24,7 @@
 #define MATCHED(c,s) (strchr(s,c)!=NULL)
 #define IS_WHITESPACE(c) (MATCHED(c," \t\n"))
 #define IS_KEYCHAR(c) (MATCHED(c,"{}[],:\0"))
+#define LOG(msg) (_LOG=(msg))
 
 bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName);
 bool _json2cmd(const char *&jsonStr, FILE * hSaveFile, char * name);
@@ -36,6 +36,7 @@ bool isNumber(const char *str);
 bool matchStr(const char *str1, const char *str2);
 char TYPE_CHECK(const char *str);
 char * getIndex(int inx);
+char *loadJsonFile(const char * filepath);
 
 class ValueName{
 public:
@@ -69,56 +70,61 @@ private:
     char *tail;
 };
 
+const char * _LOG = "";
+
 int main(int argc, char *argv[]) {
     /************test**************/
     // char s[123];
     // for(;~scanf("%s",s);){
     //     puts(isNumber(s)?"true":"false");
     // } 
-char json[] = "{\n\
-        \"id\":10086,\n\
-        \"name\":\"fuck\",\n\
-        \"children\":[\n\
-            {\n\
-                \"id\":12,\n\
-                \"name\":\"aaa\",\n\
-                \"friends\":[\n\
-                    \"tom\",\"jerry\",\"jack\"\n\
-                    [\"aa\",123,true,[false]]\n\
-                ]\n\
-            },\n\
-            {\n\
-                \"id\":2,\n\
-                \"name\":\"bbb\",\n\
-                \"goodman\":true\n\
-            }\n\
-        ],\n\
-        \"good man\":false,\n\
-        \"next\":null\n\
-    }";
-    puts(json);
-    json2cmd(json,NULL,"json");
-    return 0;
+
+    // char * json = loadJsonFile("test.json");
+    // puts(json);
+    // json2cmd(json,NULL,"json");
+    // return 0;
     /******************************/
+    
+    if(argc >= 5){
+        char * json = NULL;
+        FILE * fhSave;
+        fhSave = fopen(argv[3], "w+");
+        if(fhSave == NULL){
+                return 1;
+        }
 
-    if(argc > 2){
-
+        if(matchStr(argv[1], "-f")){    
+            json = loadJsonFile(argv[2]);
+            if(json == NULL){
+                fclose(fhSave);
+                return 1;
+            } 
+        }
+        else if(matchStr(argv[1], "-s")){
+            json = argv[2];
+        }
+        else
+            goto help;
         
+        json2cmd(json, fhSave, "json");
+        fclose(fhSave);
+
         return 0;
     }
 
     help:;
-        puts("jsoner");
+        puts("    jsoner ver 0.9 By blackkitty");
+        puts("    jsoner [-f JSONFile]|[-s JSONString] SaveFile ObjectName");
+        puts("");
     return 0;
 }
-
 
 
 /*
     json2cmd
     jsont to cmd main loop
 */
-bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName) {
+bool json2cmd(char * strJson, FILE * fhSave, char * objectName) {
 
     const char * p;
     
@@ -126,18 +132,16 @@ bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName) {
     char *stk = _stk;
 
     ValueName vn;             /* record element name */
-    vn += (const char *)eName;
+    vn += (const char *)objectName;
 
     int _inx[4096] = {0};       /* record list index */
     int *inx = _inx;
 
-    whitespaceCLR(jsonStr);
-    p = jsonStr;
+    whitespaceCLR(strJson);
+    p = strJson;
     char * tmp;
 
     for (; *p;p++) { 
-        //printf("    *p      : %c\n",*p);
-        //printf("    stk top : %c\n",*stk);
         switch(*p){
             case '{':
                 if(*stk == '{') return false;
@@ -186,7 +190,6 @@ bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName) {
             default:
                 int ctSize = -1;
                 tmp = getContent(p, ctSize);
-                //printf("tmp: %s\n",tmp);
                 if(tmp == NULL) return false;
                 if(*stk == '{'){
                     /* left value */
@@ -195,10 +198,10 @@ bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName) {
                 }
                 else{
                     /* right value */
-                    printf("%s=%s\n",vn.key, tmp);
+                    fprintf(fhSave, "set %s=%s\n", vn.key, tmp);
+                    //printf("set %s=%s\n",vn.key, tmp);
                 }
                 free(tmp);
-                //printf("ctSize:%d\n",ctSize);
                 p+=ctSize;
                 break;
         }
@@ -378,4 +381,33 @@ char * getContent(const char * str, int & ctSize){
         ctSize--;
 
     return buffer;
+}
+
+/*
+    loadJsonFile
+    return file content.
+
+    Attention:
+        free the memory of return.
+*/
+char *loadJsonFile(const char * filepath){
+    char * ret;
+    FILE *fh;
+    fh = fopen(filepath, "r");
+    if(fh == NULL) return NULL;
+
+    /* get file size */
+    int fsize = 0;
+    fseek(fh,0,SEEK_SET);
+    fsize = ftell(fh);
+    fseek(fh,0,SEEK_END);
+    fsize = ftell(fh) - fsize;
+
+    /* load file */
+    ret = (char *)malloc(sizeof(char)*(fsize+3));
+    fseek(fh,0,SEEK_SET);
+    fread(ret, sizeof(char), fsize, fh);
+    fclose(fh);
+
+    return ret;
 }
