@@ -19,10 +19,12 @@
 #define C_NUMBER_TYPE '#'
 #define C_BOOL_TYPE '@'
 #define C_NULL_TYPE '$'
+#define C_BAD_TYPE '!'
 
 int json2cmd(const char * jsonStr, FILE * hSaveFile);
 bool _json2cmd(const char *&jsonStr, FILE * hSaveFile, char * name);
 char * getContent(const char * str, int & ctSize);
+bool isNumber(const char *str);
 void whitespaceCLR(char *str);
 
 #define MATCHED(c,s) (strchr(s,c)!=NULL)
@@ -46,28 +48,75 @@ int itoa(int x, char * buffer){
     return len;
 }
 
+bool isNumber(const char *str){
+    /* -0.0e+003 */
+    bool ef, df, ff, fnf, pzf;
+    ef = false;     /* e flag */
+    df = false;     /* dot flag */
+    ff = true;      /* first position flag */
+    fnf = true;     /* first number flag */
+    pzf = false;    /* prefix zero flag */
+    for (const char *p = str; !IS_KEYCHAR(*p);p++){
+        if(MATCHED(*p, "+-")){
+            if(!ef && *p == '+') return false;
+            if(!ff) return false;
+            ff = false;
+        }
+        else if(MATCHED(*p, "eE")){
+            if(ff || fnf || ef) return false;
+            ff = fnf = ef = df = true;
+        }
+        else if(*p == '.'){
+            if(df || ff || fnf || ef) return false;
+            df = fnf = true;
+        }
+        else if(*p >= '0' && *p <= '9'){
+            if(*p == '0' && !df){
+                if(pzf) return false;
+                pzf = true;
+            }
+            ff = fnf = false;
+        }
+        else{
+            return false;
+        }
+    }
+    return !fnf;
+}
+bool matchStr(const char * str1, const char * str2){
+    for (; str2 != '\0';str1++,str2++)
+        if(*str1 != *str2)
+            return false;
+    return true;
+}
+
 inline char TYPE_CHECK(const char * str){
-    if(*str == C_STRING_TYPE) 
-        return C_STRING_TYPE;
-    if(*str >= '0' && *str <= '9')
-        return C_NUMBER_TYPE;
-    if(
-        strstr(str,"true") == str && (IS_KEYCHAR(str[4]) || IS_WHITESPACE(str[4]))
-      ||strstr(str,"false") == str && (IS_KEYCHAR(str[5]) || IS_WHITESPACE(str[5]))
-      )
+    if(*str == '"'){
+        for (str++; *str != '"';str++);
+        if(IS_KEYCHAR(str[1]))
+            return C_STRING_TYPE;
+        else
+            return C_BAD_TYPE;
+    }
+
+    if(matchStr(str, "true") || matchStr(str, "false")))
         return C_BOOL_TYPE;
-    if(
-        strstr(str,"null") == str && (IS_KEYCHAR(str[4]) || IS_WHITESPACE(str[4]))
-    )
+    
+    if(matchStr(str, "null"))
         return C_NULL_TYPE;
-    return *str;
+    
+    if(isNumber(str))
+        return C_NUMBER_TYPE;
+    
+    return C_BAD_TYPE;
 }
 
 int main(int argc, char *argv[]) {
     /************test**************/
-    char s[100] = "-------------";  
-    s[itoa(1234,s)] = '\0';
-    puts(s);
+    char s[120];
+    for (;~scanf("%s",s);){
+        printf("%s\n", isNumber(s) ? "true" : "false");
+    }
     return 0;
     /******************************/
 
@@ -103,17 +152,10 @@ void whitespaceCLR(char * str){
 /*
     getContent
     summary:
-        return the content of key or value.
+        Return the content of key or value.
+        Return NULL if content do not comply with grammar.
 */
 char * getContent(const char * str, int & ctSize){
-    /*
-        start   end         ignoreBlank
-        "       "           0
-        :       ,}          1
-        [       ,]          1
-        ,       ,]          1
-        number  whitespace  0
-    */
     char * buffer;      /*constent buffer*/
     char ctType;        /*content type*/
     char * endFlag;
@@ -123,6 +165,7 @@ char * getContent(const char * str, int & ctSize){
         case C_BOOL_TYPE:       /* fallthrough... */
         case C_NULL_TYPE:       /* fallthrough... */
         case C_NUMBER_TYPE:     endFlag = " \t\n{}[],:\0";break;
+        case C_BAD_TYPE:        /* fallthrough... */
         default: return NULL;
     }
 
@@ -149,9 +192,9 @@ int json2cmd(char * jsonStr, FILE * hSaveFile, char * eName) {
     char *stk = _stk;
 
     char name[4096];           /* record element name */
-    strcpy(_name, eName);
-    char *nametail = _name + strlen(_name);
-    char *lasttail = _name;
+    strcpy(name, eName);
+    char *nametail = name + strlen(name);
+    char *lasttail = name;
 
     int _inx[4096] = {0};       /* record list index */
     int *inx = _inx;
