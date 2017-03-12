@@ -27,7 +27,6 @@
 #define LOG(msg) (_LOG=(msg))
 
 bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName);
-bool _json2cmd(const char *&jsonStr, FILE * hSaveFile, char * name);
 char * getContent(const char * str, int & ctSize);
 bool isNumber(const char *str);
 void whitespaceCLR(char *str);
@@ -36,7 +35,7 @@ bool isNumber(const char *str);
 bool matchStr(const char *str1, const char *str2);
 char TYPE_CHECK(const char *str);
 char * getIndex(int inx);
-char *loadJsonFile(const char * filepath);
+char * loadJsonFile(const char * filepath);
 
 class ValueName{
 public:
@@ -73,18 +72,7 @@ private:
 const char * _LOG = "";
 
 int main(int argc, char *argv[]) {
-    /************test**************/
-    // char s[123];
-    // for(;~scanf("%s",s);){
-    //     puts(isNumber(s)?"true":"false");
-    // } 
 
-    // char * json = loadJsonFile("test.json");
-    // puts(json);
-    // json2cmd(json,NULL,"json");
-    // return 0;
-    /******************************/
-    
     if(argc >= 5){
         char * json = NULL;
         FILE * fhSave;
@@ -106,7 +94,7 @@ int main(int argc, char *argv[]) {
         else
             goto help;
         
-        json2cmd(json, fhSave, "json");
+        json2cmd(json, fhSave, argv[4]);
         fclose(fhSave);
 
         return 0;
@@ -207,11 +195,6 @@ bool json2cmd(char * strJson, FILE * fhSave, char * objectName) {
         }
     }
 }
-
-bool _json2cmd(const char *&jsonStr, FILE * hSaveFile, char * name){
-    return false;
-}
-
 
 /*
     whitespaceCLR
