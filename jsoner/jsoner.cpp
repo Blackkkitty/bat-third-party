@@ -1,6 +1,6 @@
 /*
     jsoner
-    Version     : 0.95 beta
+    Version     : 1.0
     Auther      : blackkitty
     Date        : 2017-3-14
     Description : JSON parsing for batch
@@ -16,24 +16,10 @@
 
 #define MATCHED(c,s) (strchr(s,c)!=NULL)        /* judge if c is in s */
 #define IS_WHITESPACE(c) (MATCHED(c," \t\n"))   /* judge if c is a whitespace */
-#define IS_KEYCHAR(c) (MATCHED(c,"{}[],:\0"))   /* judge if c is a json key charactor */
+#define IS_KEYCHAR(c) (MATCHED(c,"{}[],:\0"))   /* judge if c is a json key character */
 
 enum ContentType {STRING_TYPE, NUMBER_TYPE, BOOL_TYPE, NULL_TYPE, BAD_TYPE};
-
-bool isNumber(const char *str);
-bool matchStr(const char *str1, const char *str2);
-ContentType typeCheck(const char *str);
-
-char * loadJsonFile(const char * filepath);
-char * getContent(const char * str, int & ctSize);
-char * getIndex(int inx);
-
-bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName);
-
-void whitespaceCLR(char *str);
-int itoa(int x, char *buffer);
-
-
+enum ErrorType{SUCCESS = 0, BAD_CONTENT_TYPE, WRONG_CHARACTER, NO_MATCH, INCOMPLETE};
 class ValueName{
 public:
     char key[4096];
@@ -66,6 +52,35 @@ private:
     int *stk;
     char *tail;
 };
+struct EC{
+    ErrorType et;
+    const char * pos;
+    EC(ErrorType _et, const char * _pos):et(_et), pos(_pos){}
+};
+
+
+bool isNumber(const char *str);
+bool matchStr(const char *str1, const char *str2);
+ContentType typeCheck(const char *str, ErrorType & et);
+
+char * loadJsonFile(const char * filepath);
+char * getContent(const char * str, int & ctSize, ErrorType & et);
+char * getIndex(int inx);
+
+void whitespaceCLR(char *str);
+int itoa(int x, char *buffer);
+
+
+const char * _ErrorType[] = {
+    "Success.",
+    "Unexpected charater or data type.",
+    "There should not be a '%c'.",
+    "There are no '%c' before to match the '%c'.",
+    "The json string is not complete."
+};
+
+EC json2cmd(char * jsonStr, FILE * hSaveFile, char * eName);
+void errorReporter(EC e, const char * json);
 
 int main(int argc, char *argv[]) {
 
@@ -90,7 +105,7 @@ int main(int argc, char *argv[]) {
         else
             goto help;
         
-        json2cmd(json, fhSave, argv[4]);
+        errorReporter(json2cmd(json, fhSave, argv[4]), json);
         fclose(fhSave);
 
         return 0;
@@ -104,13 +119,51 @@ int main(int argc, char *argv[]) {
 }
 
 
+void errorReporter(EC e, const char * json){
+    if(e.et == SUCCESS){
+        puts(_ErrorType[e.et]);
+        return;
+    }
+    const char *tmp = "}]";
+    char * part = (char*)malloc(sizeof(char)*50);
+    char * p = (char*)(json>e.pos-20?json:e.pos-20);
+    int i;
+    for(i = 0;p[i]!='\0'&&i<40;i++){
+        part[i] = p[i];
+    }
+    part[i] = '\0';
+    puts("ERROR:");
+    printf("%s%s%s\n",p==json?"":"...", part, i<40?"":"...");
+    printf("%*s\n", (p==json?e.pos-json:23)+1, "^");
+    switch(e.et){
+        case BAD_CONTENT_TYPE:      /* fallthrough */
+        case INCOMPLETE:
+            puts(_ErrorType[e.et]);
+            break;
+        case WRONG_CHARACTER:
+            printf(_ErrorType[e.et],*e.pos);
+            puts("");
+            break;
+        case NO_MATCH:
+            printf(_ErrorType[e.et], 
+                "{["[strchr(tmp,*e.pos)-tmp],
+                *e.pos);
+            puts("");
+            break;
+        default:
+            puts("Unexcepted Error!");
+            break;
+    }
+    free(part); 
+}
 /*
     json2cmd
     jsont to cmd main loop
 */
-bool json2cmd(char * strJson, FILE * fhSave, char * _objectName) {
+EC json2cmd(char * strJson, FILE * fhSave, char * _objectName) {
 
     const char * p;
+    ErrorType et = SUCCESS; 
     
     char _stk[4096];            /* record "" {} [] : */
     char *stk = _stk;
@@ -121,18 +174,17 @@ bool json2cmd(char * strJson, FILE * fhSave, char * _objectName) {
     int _inx[4096] = {0};       /* record list index */
     int *inx = _inx;
 
-    whitespaceCLR(strJson);
     p = strJson;
     char * tmp;
 
     for (; *p;p++) { 
         switch(*p){
             case '{':
-                if(*stk == '{') return false;
+                if(*stk == '{') return EC(WRONG_CHARACTER,p);
                 *++stk = *p;
                 break;
             case '[':
-                if(*stk == '{') return false;
+                if(*stk == '{') return EC(WRONG_CHARACTER,p);
                 *++stk = *p;
                 *++inx = 0;
                 tmp = getIndex(*inx);
@@ -146,11 +198,11 @@ bool json2cmd(char * strJson, FILE * fhSave, char * _objectName) {
                     objectName.pop();
                     objectName.pop();
                 } 
-                else return false;
+                else return EC(NO_MATCH, p);
                 break;
             case ']':
                 if(*stk == '[') stk--;
-                else return false;
+                else return EC(NO_MATCH, p);
                 inx--;
                 objectName.pop();
                 break;
@@ -173,8 +225,8 @@ bool json2cmd(char * strJson, FILE * fhSave, char * _objectName) {
                 break;
             default:
                 int ctSize = -1;
-                tmp = getContent(p, ctSize);
-                if(tmp == NULL) return false;
+                tmp = getContent(p, ctSize, et);
+                if(tmp == NULL) return EC(et, p);
                 if(*stk == '{'){
                     /* left value */
                     objectName.push(".");
@@ -189,6 +241,8 @@ bool json2cmd(char * strJson, FILE * fhSave, char * _objectName) {
                 break;
         }
     }
+    if(stk != _stk) return EC(INCOMPLETE, p);
+    return EC(SUCCESS, p);
 }
 
 /*
@@ -199,6 +253,7 @@ void whitespaceCLR(char * str){
     bool flag = false;
     char *p = str;
     for (; *str != '\0';str++){
+        if(*str == '\n') *str=' ';
         if(*str == '"')
             flag = !flag;
         if(flag || (*str!=' ' && *str!='\t' && *str!='\n'))
@@ -306,7 +361,7 @@ bool matchStr(const char * str1, const char * str2){
     typeCheck
     get the type of content.
 */
-ContentType typeCheck(const char * str){
+ContentType typeCheck(const char * str, ErrorType & et){
 
     if(matchStr(str, "true") || matchStr(str, "false"))
         return BOOL_TYPE;
@@ -322,7 +377,7 @@ ContentType typeCheck(const char * str){
         if(IS_KEYCHAR(str[1]))
             return STRING_TYPE;
     }
-
+    et = BAD_CONTENT_TYPE;
     return BAD_TYPE;
 }
 
@@ -334,12 +389,12 @@ ContentType typeCheck(const char * str){
     Attention:
         free the memory of content
 */
-char * getContent(const char * str, int & ctSize){
+char * getContent(const char * str, int & ctSize, ErrorType & et){
     char * buffer;      /*constent buffer*/
     char ctType;        /*content type*/
     const char * endFlag;
 
-    switch(ctType = typeCheck(str)){
+    switch(ctType = typeCheck(str, et)){
         case STRING_TYPE:     endFlag = "\""; str++; break;
         case BOOL_TYPE:       /* fallthrough... */
         case NULL_TYPE:       /* fallthrough... */
@@ -383,8 +438,10 @@ char *loadJsonFile(const char * filepath){
 
     /* load file */
     ret = (char *)malloc(sizeof(char)*(fsize+3));
-    fseek(fh,0,SEEK_SET);
-    fread(ret, sizeof(char), fsize, fh);
+    fseek(fh, 0, SEEK_SET);
+    fsize = fread(ret, sizeof(char), fsize-1, fh);
+    ret[fsize] = '\0';
+    whitespaceCLR(ret);
     fclose(fh);
 
     return ret;
