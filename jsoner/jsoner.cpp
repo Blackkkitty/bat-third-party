@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     }
 
     help:;
-        puts("    jsoner ver 0.9 By blackkitty");
+        puts("    jsoner ver 1.0 By blackkitty");
         puts("    jsoner [-f JSONFile]|[-s JSONString] SaveFile ObjectName");
         puts("");
     return 0;
