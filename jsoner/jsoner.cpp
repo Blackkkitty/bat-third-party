@@ -1,41 +1,38 @@
 /*
     jsoner
-    Version     : 0.9 beta
+    Version     : 0.95 beta
     Auther      : blackkitty
-    Date        : 2017-3-7
+    Date        : 2017-3-14
     Description : JSON parsing for batch
 
     batch usage:
         jsoner [-f JSONFile]|[-s JSONString] SaveFile elementName
-        call SaveFile [Arguments]
+        call SaveFile
 */
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* content type */
-#define C_STRING_TYPE '"'
-#define C_NUMBER_TYPE '#'
-#define C_BOOL_TYPE '@'
-#define C_NULL_TYPE '$'
-#define C_BAD_TYPE '!'
+#define MATCHED(c,s) (strchr(s,c)!=NULL)        /* judge if c is in s */
+#define IS_WHITESPACE(c) (MATCHED(c," \t\n"))   /* judge if c is a whitespace */
+#define IS_KEYCHAR(c) (MATCHED(c,"{}[],:\0"))   /* judge if c is a json key charactor */
 
-#define MATCHED(c,s) (strchr(s,c)!=NULL)
-#define IS_WHITESPACE(c) (MATCHED(c," \t\n"))
-#define IS_KEYCHAR(c) (MATCHED(c,"{}[],:\0"))
-#define LOG(msg) (_LOG=(msg))
+enum ContentType {STRING_TYPE, NUMBER_TYPE, BOOL_TYPE, NULL_TYPE, BAD_TYPE};
 
-bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName);
-char * getContent(const char * str, int & ctSize);
-bool isNumber(const char *str);
-void whitespaceCLR(char *str);
-int itoa(int x, char *buffer);
 bool isNumber(const char *str);
 bool matchStr(const char *str1, const char *str2);
-char TYPE_CHECK(const char *str);
-char * getIndex(int inx);
+ContentType typeCheck(const char *str);
+
 char * loadJsonFile(const char * filepath);
+char * getContent(const char * str, int & ctSize);
+char * getIndex(int inx);
+
+bool json2cmd(char * jsonStr, FILE * hSaveFile, char * eName);
+
+void whitespaceCLR(char *str);
+int itoa(int x, char *buffer);
+
 
 class ValueName{
 public:
@@ -47,7 +44,7 @@ public:
         memset(key,0,sizeof(key));
     }
 
-    ValueName operator+=(const char * str){
+    ValueName push(const char * str){
         int t = 0;
         tail = key+*stk;
         for(;*str != '\0';t++)
@@ -58,18 +55,17 @@ public:
         return *this;
     }
     
-    ValueName back(){
+    ValueName pop(){
         stk--;
         key[*stk] = '\0';
         return *this;
     }
+
 private:
     int _stk[4096];
     int *stk;
     char *tail;
 };
-
-const char * _LOG = "";
 
 int main(int argc, char *argv[]) {
 
@@ -112,15 +108,15 @@ int main(int argc, char *argv[]) {
     json2cmd
     jsont to cmd main loop
 */
-bool json2cmd(char * strJson, FILE * fhSave, char * objectName) {
+bool json2cmd(char * strJson, FILE * fhSave, char * _objectName) {
 
     const char * p;
     
     char _stk[4096];            /* record "" {} [] : */
     char *stk = _stk;
 
-    ValueName vn;             /* record element name */
-    vn += (const char *)objectName;
+    ValueName objectName;             /* record element name */
+    objectName.push(_objectName);
 
     int _inx[4096] = {0};       /* record list index */
     int *inx = _inx;
@@ -140,15 +136,15 @@ bool json2cmd(char * strJson, FILE * fhSave, char * objectName) {
                 *++stk = *p;
                 *++inx = 0;
                 tmp = getIndex(*inx);
-                vn += (const char *)tmp;
+                objectName.push(tmp);
                 free(tmp);
                 break;
             case '}':
                 if(*stk == '{') stk--;
                 else if(*stk == ':'){
                     stk--,p--;
-                    vn.back();
-                    vn.back();
+                    objectName.pop();
+                    objectName.pop();
                 } 
                 else return false;
                 break;
@@ -156,7 +152,7 @@ bool json2cmd(char * strJson, FILE * fhSave, char * objectName) {
                 if(*stk == '[') stk--;
                 else return false;
                 inx--;
-                vn.back();
+                objectName.pop();
                 break;
             case ':':
                 *++stk = *p;
@@ -164,15 +160,15 @@ bool json2cmd(char * strJson, FILE * fhSave, char * objectName) {
             case ',':
                 if(*stk == '['){
                     ++*inx;
-                    vn.back();
                     tmp = getIndex(*inx);
-                    vn += (const char *)tmp;
+                    objectName.pop();
+                    objectName.push(tmp);
                     free(tmp);
                 }
                 if(*stk == ':'){
                     stk--;
-                    vn.back();
-                    vn.back();
+                    objectName.pop();
+                    objectName.pop();
                 }
                 break;
             default:
@@ -181,13 +177,12 @@ bool json2cmd(char * strJson, FILE * fhSave, char * objectName) {
                 if(tmp == NULL) return false;
                 if(*stk == '{'){
                     /* left value */
-                    vn += ".";
-                    vn += (const char *)tmp;
+                    objectName.push(".");
+                    objectName.push(tmp);
                 }
                 else{
                     /* right value */
-                    fprintf(fhSave, "set %s=%s\n", vn.key, tmp);
-                    //printf("set %s=%s\n",vn.key, tmp);
+                    fprintf(fhSave, "set \"%s=%s\"\n", objectName.key, tmp);
                 }
                 free(tmp);
                 p+=ctSize;
@@ -308,27 +303,27 @@ bool matchStr(const char * str1, const char * str2){
 }
 
 /*
-    TYPE_CHECK
+    typeCheck
     get the type of content.
 */
-char TYPE_CHECK(const char * str){
+ContentType typeCheck(const char * str){
 
     if(matchStr(str, "true") || matchStr(str, "false"))
-        return C_BOOL_TYPE;
+        return BOOL_TYPE;
     
     if(matchStr(str, "null"))
-        return C_NULL_TYPE;
+        return NULL_TYPE;
     
     if(isNumber(str))
-        return C_NUMBER_TYPE;
+        return NUMBER_TYPE;
 
     if(*str == '"'){
         for (str++; *str != '"';str++);
         if(IS_KEYCHAR(str[1]))
-            return C_STRING_TYPE;
+            return STRING_TYPE;
     }
 
-    return C_BAD_TYPE;
+    return BAD_TYPE;
 }
 
 /*
@@ -344,12 +339,12 @@ char * getContent(const char * str, int & ctSize){
     char ctType;        /*content type*/
     const char * endFlag;
 
-    switch(ctType = TYPE_CHECK(str)){
-        case C_STRING_TYPE:     endFlag = "\""; str++; break;
-        case C_BOOL_TYPE:       /* fallthrough... */
-        case C_NULL_TYPE:       /* fallthrough... */
-        case C_NUMBER_TYPE:     endFlag = " \t\n{}[],:\0";break;
-        case C_BAD_TYPE:        /* fallthrough... */
+    switch(ctType = typeCheck(str)){
+        case STRING_TYPE:     endFlag = "\""; str++; break;
+        case BOOL_TYPE:       /* fallthrough... */
+        case NULL_TYPE:       /* fallthrough... */
+        case NUMBER_TYPE:     endFlag = " \t\n{}[],:\0";break;
+        case BAD_TYPE:        /* fallthrough... */
         default: return NULL;
     }
 
@@ -358,7 +353,7 @@ char * getContent(const char * str, int & ctSize){
     buffer = (char *)malloc(sizeof(char)*(ctSize+1));
     memcpy(buffer, str, sizeof(char)*ctSize);
     buffer[ctSize] = '\0';
-    if(ctType == C_STRING_TYPE)
+    if(ctType == STRING_TYPE)
         ctSize++;
     else
         ctSize--;
