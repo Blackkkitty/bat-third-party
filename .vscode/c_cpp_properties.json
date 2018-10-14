@@ -24,8 +24,10 @@
         {
             "name": "Win32",
             "includePath": [
-                "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/include/*",
-                "C:/Program Files (x86)/MinGW/include"
+                "C:/Program Files (x86)/MinGW/include/",
+                "C:/Program Files (x86)/MinGW/mingw32/lib/gcc/mingw32/4.8.1/include/c++/mingw32/",
+                "C:/Program Files (x86)/MinGW/mingw32/lib/gcc/mingw32/4.8.1/include/c++/",
+                "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/include/"
             ],
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,

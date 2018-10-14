@@ -11,9 +11,9 @@
         {
             "id": 2,
             "name": "bbb",
-            "goodman": true
+            "Male": true
         }
     ],
-    "good man": false,
+    "Male": false,
     "next": null
 }
